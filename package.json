@@ -1,0 +1,240 @@
+{
+  "name": "pathmend",
+  "displayName": "PathMend",
+  "description": "Find broken file paths in config files after you move or rename something: package.json main/bin/exports/files, tsconfig extends/include/references/paths/typeRoots, Dockerfile COPY/ADD, docker-compose build context, GitHub Actions working-directory/uses/run scripts, GitLab CI include, CODEOWNERS and launch.json. Suggests the moved file and updates references on rename. Only checks whether paths exist inside the workspace - runs no processes, so it works in untrusted workspaces.",
+  "version": "0.1.0",
+  "publisher": "jaytankdev",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "broken path",
+    "rename",
+    "move file",
+    "package.json",
+    "tsconfig",
+    "dockerfile",
+    "docker-compose",
+    "github actions",
+    "codeowners",
+    "gitlab ci",
+    "devops"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/package.json",
+    "workspaceContains:**/tsconfig*.json",
+    "workspaceContains:**/Dockerfile*",
+    "workspaceContains:.github/workflows",
+    "workspaceContains:**/.gitlab-ci.yml",
+    "onStartupFinished",
+    "onView:pathmend.references"
+  ],
+  "main": "./extension.js",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#3A1A06",
+    "theme": "dark"
+  },
+  "license": "MIT",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "pathmend.scan",
+        "title": "Scan workspace",
+        "category": "PathMend",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pathmend.showBroken",
+        "title": "Show broken references",
+        "category": "PathMend",
+        "icon": "$(list-filter)"
+      },
+      {
+        "command": "pathmend.openReference",
+        "title": "Open reference",
+        "category": "PathMend"
+      },
+      {
+        "command": "pathmend.applyFix",
+        "title": "Apply suggested path",
+        "category": "PathMend",
+        "icon": "$(lightbulb-autofix)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pathmend",
+          "title": "PathMend",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "pathmend": [
+        {
+          "id": "pathmend.references",
+          "name": "Broken References",
+          "icon": "media/activity.svg",
+          "contextualTitle": "PathMend"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "pathmend.references",
+        "contents": "PathMend is turned off.\n[Open PathMend Settings](command:workbench.action.openSettings?%5B%22pathmend.%22%5D)",
+        "when": "!config.pathmend.enabled"
+      },
+      {
+        "view": "pathmend.references",
+        "contents": "Open a folder to check the file paths in its config files.\n[Open Folder](command:workbench.action.files.openFolder)",
+        "when": "config.pathmend.enabled && workbenchState == empty"
+      },
+      {
+        "view": "pathmend.references",
+        "contents": "No broken config paths found.\nPathMend checks the file paths in package.json, tsconfig / jsconfig, Dockerfile COPY / ADD, Compose build contexts, GitHub Actions workflows, GitLab CI includes, CODEOWNERS and .vscode/launch.json, and offers to update them when you rename a file in VS Code.\n[Scan workspace](command:pathmend.scan)",
+        "when": "config.pathmend.enabled && workbenchState != empty"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "pathmend.openReference",
+          "when": "false"
+        },
+        {
+          "command": "pathmend.applyFix",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "pathmend.showBroken",
+          "when": "view == pathmend.references",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pathmend.scan",
+          "when": "view == pathmend.references",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "pathmend.applyFix",
+          "when": "view == pathmend.references && viewItem == finding.fixable",
+          "group": "inline@1"
+        },
+        {
+          "command": "pathmend.applyFix",
+          "when": "view == pathmend.references && viewItem == finding.fixable",
+          "group": "1_actions@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "PathMend",
+      "properties": {
+        "pathmend.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable PathMend diagnostics."
+        },
+        "pathmend.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**"
+          ],
+          "description": "Glob patterns (relative to the workspace folder) excluded from the scan. Config files here are not read, and references pointing here are not checked."
+        },
+        "pathmend.ignoreReferences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/build/**",
+            "**/out/**",
+            "**/coverage/**",
+            "**/target/**",
+            "**/.next/**"
+          ],
+          "description": "Glob patterns for build output folders. References that point into them (for example \"main\": \"build/index.js\") are not checked, because the files only exist after a build. The tsconfig outDir / declarationDir of every tsconfig is added automatically."
+        },
+        "pathmend.disabledRules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "PM001",
+              "PM002",
+              "PM003",
+              "PM004",
+              "PM005",
+              "PM006",
+              "PM007",
+              "PM008",
+              "PM009",
+              "PM010",
+              "PM011"
+            ]
+          },
+          "default": [],
+          "description": "Rule codes to turn off."
+        },
+        "pathmend.severity": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning",
+            "information",
+            "hint"
+          ],
+          "default": "warning",
+          "description": "Severity for broken references. PM010 (outside workspace, not checked) is always Information."
+        },
+        "pathmend.reportOutsideWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show an Information diagnostic (PM010) for paths that resolve outside the workspace. They are never checked either way."
+        },
+        "pathmend.renameUpdates": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "off"
+          ],
+          "default": "prompt",
+          "description": "After a rename or move in VS Code, offer to update config references that pointed at the old path."
+        },
+        "pathmend.maxIndexedFiles": {
+          "type": "number",
+          "default": 20000,
+          "description": "Maximum number of workspace files indexed for glob matching and \"did you mean\" suggestions."
+        },
+        "pathmend.maxConfigFileSizeKB": {
+          "type": "number",
+          "default": 512,
+          "description": "Config files larger than this are skipped."
+        }
+      }
+    }
+  }
+}
