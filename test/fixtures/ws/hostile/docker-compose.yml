@@ -1,0 +1,8 @@
+services:
+  escape:
+    build:
+      context: ../../../../../../../../etc
+      dockerfile: passwd
+  viaLink:
+    build:
+      context: linkout

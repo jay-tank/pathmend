@@ -1,0 +1,19 @@
+{
+  "name": "fixture",
+  "version": "1.0.0",
+  "main": "src/index",
+  "module": "src/esm/index.mjs",
+  "types": "types/index.d.ts",
+  "typings": "build-out/index.d.ts",
+  "bin": {
+    "tool": "bin/tool.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./helpers": "./src/utils/helpers.js",
+    "./feature/*": "./src/features/*.js",
+    "./legacy": { "require": "./src/legacy.cjs", "default": null }
+  },
+  "files": ["src", "lib/", "docs/*.md", "docs/*.pdf", "!test", "dist"],
+  "workspaces": ["packages/*"]
+}

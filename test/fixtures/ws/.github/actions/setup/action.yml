@@ -1,0 +1,8 @@
+name: setup
+runs:
+  using: composite
+  steps:
+    - run: ./tools/start.sh
+      shell: bash
+    - run: bash tools/setup-missing.sh
+      shell: bash

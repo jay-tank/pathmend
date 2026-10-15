@@ -1,0 +1,10 @@
+{
+  // comments and trailing commas are allowed
+  "extends": "./tsconfig.base",
+  "compilerOptions": {
+    "outDir": "build-out", /* inline */
+  },
+  "files": ["src/index.js", "src/utils/helpers.js", "src/missing.ts"],
+  "include": ["src/**/*", "tests/**/*.ts"],
+  "references": [{ "path": "./packages/core-lib" }, { "path": "./packages/core" }, { "path": "./src" }],
+}

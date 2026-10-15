@@ -1,0 +1,5 @@
+{
+  "compilerOptions": {
+    "paths": { "@self/*": ["./src/*"], "@miss": ["./lib/missing"] }
+  }
+}

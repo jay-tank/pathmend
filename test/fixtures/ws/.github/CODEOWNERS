@@ -1,0 +1,9 @@
+# Owners
+*.js @team
+/src/ @a
+/docs/guid.md @b
+scripts/deploy.sh @c
+Dockerfile @d
+nonexistent-dir/ @e
+[Section]
+/tools/ @f

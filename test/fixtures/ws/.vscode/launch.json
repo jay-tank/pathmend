@@ -1,0 +1,10 @@
+{
+  // VS Code allows comments here
+  "version": "0.2.0",
+  "configurations": [
+    { "name": "a", "type": "node", "request": "launch", "program": "${workspaceFolder}/src/index.js", "cwd": "${workspaceFolder}" },
+    { "name": "b", "type": "node", "request": "launch", "program": "${workspaceFolder}/src/server.js", },
+    { "name": "c", "type": "node", "request": "launch", "program": "${file}" },
+    { "name": "d", "type": "node", "request": "launch", "cwd": "${workspaceFolder}/services/nope" },
+  ],
+}

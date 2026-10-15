@@ -1,0 +1,23 @@
+services:
+  web:
+    build: .
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile.prod
+  api2:
+    build: ./services/api
+  worker:
+    build:
+      context: ./services/wrker
+  remote:
+    build: https://github.com/example/repo.git#main
+  varctx:
+    build:
+      context: ${CTX}
+  linked:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+  image-only:
+    image: nginx:1.27

@@ -1,0 +1,1 @@
+{ "compilerOptions": { "baseUrl": "./srcx", "paths": { "@a/*": ["*"], "@b": ["nothing"] } } }

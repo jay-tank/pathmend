@@ -1,0 +1,15 @@
+{
+  // "paths" are resolved against the inherited baseUrl (the workspace root)
+  "extends": "./tsconfig.paths.json",
+  "compilerOptions": {
+    "paths": {
+      "@utils/*": ["src/utils/*"],
+      "@tool": ["lib/tool"],
+      "@gone/*": ["src/gone/*"],
+      "@typo": ["src/indx"],
+      "@pkg/*": ["node_modules/some-pkg/*"],
+      "@types-dir": ["types"]
+    },
+    "typeRoots": ["./types", "../../types", "../../node_modules/@types"]
+  }
+}

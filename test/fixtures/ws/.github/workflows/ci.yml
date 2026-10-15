@@ -1,0 +1,43 @@
+name: CI
+on: [push]
+defaults:
+  run:
+    working-directory: .
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/setpu
+      - uses: ./.github/actions/empty
+      - run: ./run-tests.sh
+      - name: Lint
+        working-directory: ${{ github.workspace }}/x
+        run: ./lint.sh
+      - name: Build web
+        working-directory: packages/web
+        run: ./build.sh
+      - name: Scripts
+        working-directory: .
+        run: |
+          echo "# not a comment"
+          bash scripts/build.sh
+          python tools/report.py
+          ./tools/release.sh --dry-run
+          npm test
+          ./dist/cli.js
+          python -m http.server
+          $HOME/bin/x.sh
+  reuse:
+    uses: ./.github/workflows/shared.yml
+  moved:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: sub
+      - run: ./does-not-matter.sh

@@ -1,0 +1,4 @@
+include:
+  - local: /../../../../../../../../etc/passwd
+  - local: "/linkout/secret.txt"
+	bad: tab

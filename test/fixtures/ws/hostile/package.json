@@ -1,0 +1,8 @@
+{
+  "name": "hostile",
+  "main": "/etc/passwd",
+  "bin": "../../../../../../../../etc/passwd",
+  "types": "linkout/secret.txt",
+  "module": "linkout/../linkout/secret.txt",
+  "files": ["/etc/*", "linkout/*", "../../../../../../*"]
+}

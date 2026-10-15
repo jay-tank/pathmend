@@ -1,0 +1,1 @@
+﻿{"main": "ok\u0000.js", "__proto__": {"main": "x"}, "constructor": 1, "bin": 42, "exports": {"a": [null, true, {"b": "./nope.js"}]}, "files": "notarray", "types": "\u002e\u002e/\u002e\u002e/\u002e\u002e/\u002e\u002e/\u002e\u002e/\u002e\u002e/\u002e\u002e/etc/passwd"}

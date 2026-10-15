@@ -1,0 +1,11 @@
+include:
+  - local: /ci/templates/build.yml
+  - local: ci/templates/tset.yml
+  - '/ci/missing.yml'
+  - remote: https://example.com/x.yml
+  - project: group/x
+    file: /templates/x.yml
+  - template: Auto-DevOps.gitlab-ci.yml
+  - local: ci/templates/*.yml
+  - local: ci/none/*.yml
+stages: [build]
