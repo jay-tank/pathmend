@@ -929,6 +929,9 @@ function packageScriptRefs(c, node, label, base, ctx) {
       if (!/^(?:\.\.?\/|\/)/.test(token) && !/\.[a-z\d]{1,8}$/i.test(token)) continue;
       const offset = node.start + bodyStart + option.index + option[0].lastIndexOf(token);
       const position = posOf(c.starts, offset);
+      // A direct script operand may already have been identified at this range.
+      if (refs.some(ref => ref.line === position.line && ref.col === position.col &&
+        ref.endCol === position.col + token.length)) continue;
       refs.push(mkRef({
         file: c.file, line: position.line, col: position.col,
         endCol: position.col + token.length, value: token,
