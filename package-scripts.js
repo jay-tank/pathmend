@@ -14,6 +14,9 @@
 const SCRIPT_COMMAND =
   /(?:^|&&|\|\||[;|])\s*(?:(?:env|cross-env)\s+(?:[A-Za-z_]\w*=[^\s;&|]+\s+)*)?(?:(?:node|tsx|ts-node|ts-node-esm|bun|deno|python3?|bash|sh|zsh|dash|ksh|ruby|perl|pwsh)\s+(?:--?[\w-]+(?:=[^\s;&|]+)?\s+)*([^\s;&|"'\x60$()<>]+)|(\.\.?\/[^\s;&|"'\x60$()<>]+))/g;
 const SCRIPT_EXTENSION = /\.(?:[cm]?[jt]sx?|py|sh|bash|zsh|rb|pl|ps1)$/i;
+// Bare option values need a recognizable file extension; arbitrary dotted
+// values (for example console.log in --eval console.log(1)) are not files.
+const OPTION_FILE_EXTENSION = /\.(?:[cm]?[jt]sx?|jsonc?|ya?ml|toml|ini|xml|html?|css|scss|less|vue|svelte|sh|bash|zsh|py|rb|pl|ps1|sql|graphql|gql|md|txt)$/i;
 const OPTION_ARGUMENT = /(?:^|\s)--[a-z][\w-]*(?:\s+|=)([^\s;&|"'\x60$()<>]+)/gi;
 const COMMAND_SEGMENT = /(?:^|&&|\|\||[;|])([^;&|]*)/g;
 
@@ -24,7 +27,7 @@ function localPath(value, allowAnyExtension) {
       /[\x00-\x1f\x7f]/.test(value)) return false;
   if (value.startsWith("-")) return false;
   if (value.startsWith("./") || value.startsWith("../") || value.startsWith("/")) return true;
-  return allowAnyExtension ? /\.[a-z\d]{1,8}$/i.test(value) : SCRIPT_EXTENSION.test(value);
+  return (allowAnyExtension ? OPTION_FILE_EXTENSION : SCRIPT_EXTENSION).test(value);
 }
 
 /** Return { value, offset, base } for each local file operand. */
