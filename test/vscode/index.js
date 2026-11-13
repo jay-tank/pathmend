@@ -9,22 +9,9 @@ const path = require("path");
 const expected = require("../expected");
 
 const EXT_DIR = path.resolve(__dirname, "..", "..");
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function waitFor(fn, ms) {
-  const end = Date.now() + ms;
-  for (;;) {
-    let v;
-    try {
-      v = await fn();
-    } catch (_) {
-      v = undefined;
-    }
-    if (v) return v;
-    if (Date.now() > end) return v;
-    await sleep(100);
-  }
-}
+const { sleep, waitFor, captureState } = require("./utils/visual");
+const { runScriptCases } = require("./usecases");
+const { runMonorepoCases } = require("./monorepo");
 
 function diagList(ws) {
   const out = [];
@@ -69,7 +56,11 @@ async function run() {
   const check = (name, ok, detail) => results.push({ name, ok: !!ok, detail: ok ? undefined : detail === undefined ? null : detail });
   try {
     if (cfg.mode === "untrusted") await untrusted(check, cfg);
-    else await body(check, cfg);
+    else {
+      await body(check, cfg);
+      await runScriptCases(check, cfg);
+      await runMonorepoCases(check, cfg);
+    }
   } catch (e) {
     check("no exception", false, String(e && e.stack));
   }
@@ -111,6 +102,7 @@ async function untrusted(check, cfg) {
   const broken = api.getFindings().filter((f) => !f.info).length;
   check("untrusted: view has rows", rows(api).length === expected.length, rows(api).length);
   check("untrusted: badge = broken references", api.getBadge() === broken && broken > 0, [api.getBadge(), broken]);
+  await captureState(cfg, "untrusted-panel", ws);
   const row = rows(api).find((r) => r.group === "Dockerfile" && r.label === "PM003  scripts/start.sh");
   const opened = row && (await vscode.commands.executeCommand(row.item.command.command, ...row.item.command.arguments));
   const ed = vscode.window.activeTextEditor;
@@ -221,13 +213,8 @@ async function body(check, cfg) {
   const tsRow = all.find((r) => r.group === "packages/app/tsconfig.json" && r.label === "PM002  ./types");
   check("tsconfig typeRoots row labelled with the path", !!tsRow, all.filter((r) => r.group === "packages/app/tsconfig.json").map((r) => r.label));
 
-  // ---- screenshot of the panel ----------------------------------------------------
-  await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-  await vscode.commands.executeCommand("workbench.view.extension.pathmend");
-  await sleep(6000);
-  fs.writeFileSync(path.join(cfg.shotDir, "shot-trusted"), "1");
-  const shotDone = await waitFor(() => fs.existsSync(path.join(cfg.shotDir, "shot-done-trusted")), 20000);
-  check("screenshot taken", shotDone);
+  // ---- visual checkpoint (optional screenshot) ------------------------------------
+  await captureState(cfg, "diagnostics-panel", ws);
 
   // ---- open command ------------------------------------------------------------------
   const openRes = await vscode.commands.executeCommand(start.item.command.command, ...start.item.command.arguments);
@@ -254,6 +241,7 @@ async function body(check, cfg) {
   check("inline fix rewrote only that path and saved", fixRes === true && /^COPY tools\/start\.sh \/usr\/local\/bin\/start\.sh$/m.test(dockerText) && !/scripts\/start\.sh/.test(dockerText), dockerText.split("\n")[5]);
   check("badge drops by one after the fix", api.getBadge() === before - 1, [before, api.getBadge()]);
   check("row gone after the fix", !rows(api).some((r) => r.group === "Dockerfile" && r.label === "PM003  scripts/start.sh"));
+  await captureState(cfg, "after-inline-fix", ws);
   const forgedFix = await vscode.commands.executeCommand("pathmend.applyFix", { file: path.join(ws, "Dockerfile"), line: 5, col: 5, code: "PM003" });
   const noFix = await vscode.commands.executeCommand("pathmend.applyFix", rows(api).find((r) => r.item.contextValue === "finding").node);
   check("fix command rejects stale and unfixable rows", forgedFix === false && noFix === false, [forgedFix, noFix]);
@@ -339,6 +327,7 @@ async function body(check, cfg) {
   list = diagList(ws);
   d = diff(list.map((x) => x.key), afterFix);
   check("no diagnostics left from the folder rename", !d.extra.length && !d.missing.length, d);
+  await captureState(cfg, "after-folder-rename", ws);
 
   // File rename, answered "Ignore": nothing edited, the references show up as broken.
   answer = "Ignore";
@@ -354,6 +343,7 @@ async function body(check, cfg) {
   check("ignored rename leaves exactly those references broken", same(d.extra.sort(), ["Dockerfile:20:PM003", "package.json:9:PM001", "packages/app/tsconfig.json:7:PM002"]) && !d.missing.length, d);
   const cliRow = rows(api).find((r) => r.group === "package.json" && r.label === "PM001  lib/tool.js");
   check("panel shows the stale reference by its path", cliRow && /package\.json:9/.test(cliRow.item.tooltip), cliRow && cliRow.item.tooltip);
+  await captureState(cfg, "ignored-rename", ws);
 
   // renameUpdates = off: plan computed, no prompt. Renaming back clears the diagnostics.
   await vscode.workspace.getConfiguration("pathmend").update("renameUpdates", "off", vscode.ConfigurationTarget.Workspace);
@@ -400,6 +390,7 @@ async function body(check, cfg) {
   await sleep(200);
   await api.scan();
   check("empty state: nothing to show -> no rows, no badge (welcome text shows)", api.getChildren().length === 0 && api.getBadge() === 0);
+  await captureState(cfg, "empty-state", ws);
   await conf.update("disabledRules", undefined, vscode.ConfigurationTarget.Workspace);
   await conf.update("severity", "error", vscode.ConfigurationTarget.Workspace);
   await sleep(200);
@@ -417,6 +408,7 @@ async function body(check, cfg) {
   await api.scan();
   check("enabled=false clears diagnostics", diagList(ws).length === 0);
   check("enabled=false: view empty, badge cleared", api.getChildren().length === 0 && api.getBadge() === 0);
+  await captureState(cfg, "disabled-state", ws);
   const welcome = pkg.contributes.viewsWelcome;
   check(
     "welcome states: turned off, no folder, nothing found (with what it checks + Scan button)",

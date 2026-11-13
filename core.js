@@ -10,6 +10,7 @@
  */
 
 const path = require("path");
+const { extractScriptPaths } = require("./package-scripts");
 
 const RULES = {
   PM001: "package.json path not found",
@@ -874,7 +875,22 @@ function yamlRef(c, s, o) {
   );
 }
 
-function extractPackage(c) {
+function packageScriptRefs(c, node, label, base, ctx) {
+  if (!node || node.type !== "string" || !node.value) return [];
+  // JSON escapes change source offsets. Do not attempt unsafe edits in those strings.
+  if (c.text.slice(node.start, node.end) !== node.value) return [];
+  return extractScriptPaths(node.value, base, ctx.packageDirs).map(({ value, offset, base: scriptBase }) => {
+    const position = posOf(c.starts, node.start + offset);
+    return mkRef({
+      file: c.file, line: position.line, col: position.col,
+      endCol: position.col + value.length, value,
+      escape: "json", code: "PM001", base: scriptBase, kind: "file",
+      label: "package.json " + label,
+    });
+  });
+}
+
+function extractPackage(c, ctx) {
   const tree = parseJsonc(c.text);
   if (!tree || tree.type !== "object") return [];
   const out = [];
@@ -885,6 +901,10 @@ function extractPackage(c) {
   };
   add(jget(tree, "main"), "main", { kind: "file", alts: [".js", ".json", ".node", "/index.js", "/index.json", "/index.node"] });
   for (const k of ["module", "types", "typings", "browser"]) add(jget(tree, k), k, { kind: "file" });
+  const scripts = jget(tree, "scripts");
+  if (scripts && scripts.type === "object") {
+    for (const entry of scripts.props) out.push(...packageScriptRefs(c, entry.value, "scripts." + entry.key, base, ctx));
+  }
   const bin = jget(tree, "bin");
   if (bin && bin.type === "string") add(bin, "bin", { kind: "file" });
   else if (bin && bin.type === "object") for (const p of bin.props) add(p.value, "bin." + p.key, { kind: "file" });
@@ -1584,6 +1604,19 @@ function analyze(opts) {
     .filter((c) => c.kind)
     .sort((a, b) => (order[a.kind] === undefined ? 2 : order[a.kind]) - (order[b.kind] === undefined ? 2 : order[b.kind]));
   ctx.guard = opts.guard;
+  // Use package names from the analyzed manifests to resolve npm workspace cwd.
+  ctx.packageDirs = new Map();
+  for (const c of configs) {
+    if (c.kind !== "package") continue;
+    try {
+      const name = jget(parseJsonc(c.text), "name");
+      if (name && name.type === "string" && name.value) {
+        ctx.packageDirs.set(name.value, path.dirname(c.file));
+      }
+    } catch (_) {
+      /* malformed package.json */
+    }
+  }
   ctx.tsInfo = new Map();
   for (const c of configs) {
     if (c.kind !== "tsconfig") continue;
@@ -1600,7 +1633,7 @@ function analyze(opts) {
     c.lines = splitLines(c.text);
     let list = [];
     try {
-      if (c.kind === "package") list = extractPackage(c);
+      if (c.kind === "package") list = extractPackage(c, ctx);
       else if (c.kind === "tsconfig") list = extractTsconfig(c, ctx);
       else if (c.kind === "compose") list = extractCompose(c, ctx);
       else if (c.kind === "workflow" || c.kind === "action") list = extractWorkflow(c, c.kind);
@@ -1655,12 +1688,25 @@ function analyze(opts) {
     }
     if (disabled.has(code)) continue;
     let fix = null;
-    if (r.state === "missing" && !r.anywhere && r.root && ref.escape !== "noedit") {
-      const confine = r.confine ? toPosix(path.relative(r.root, r.base)) : "";
-      const best = opts.index.suggest(r.root, r.rel, ref.kind, confine && !confine.startsWith("..") ? confine : "");
-      if (best) {
-        const newText = formatPath(ref, path.join(r.root, best), r.base);
-        if (newText !== ref.display && encodeFor(ref, newText) !== null) fix = newText;
+    if (ref.escape !== "noedit" && !r.anywhere) {
+      // An outside reference remains PM010. For absolute file paths, look
+      // only in the workspace index for a possible relative replacement.
+      const outsideAbsolute = r.state === "outside" &&
+        path.isAbsolute(ref.value) && ref.kind === "file" && ref.fmt === "rel";
+      const root = outsideAbsolute ? opts.guard.rootOf(ref.base) : r.root;
+      if ((r.state === "missing" || outsideAbsolute) && root) {
+        const confine = r.confine ? toPosix(path.relative(root, ref.base)) : "";
+        const best = opts.index.suggest(root, outsideAbsolute ? ref.value : r.rel,
+          ref.kind, confine && !confine.startsWith("..") ? confine : "");
+        if (best) {
+          const target = path.join(root, best);
+          // Never offer a stale, ignored, or outside-workspace candidate.
+          if ((!outsideAbsolute || opts.guard.status(target).state === "file") &&
+              !env.ignored(target, root)) {
+            const newText = formatPath(ref, target, ref.base);
+            if (newText !== ref.display && encodeFor(ref, newText) !== null) fix = newText;
+          }
+        }
       }
     }
     findings.push({ file: ref.file, line: ref.line, col: ref.col, endCol: ref.endCol, code, message, info, fix, ref });

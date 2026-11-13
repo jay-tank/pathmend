@@ -1,2 +1,16 @@
-*.vsix
+# Dependencies
 node_modules/
+
+# Packaged extension
+*.vsix
+
+# VS Code test downloads (if stored inside the repository)
+.vscode-test/
+
+# Test and coverage reports
+coverage/
+test-results/
+playwright-report/
+
+# Local screenshots (created by the VS Code test runner)
+screenshots/

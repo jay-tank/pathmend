@@ -7,3 +7,4 @@ generate_icon.py
 test/**
 node_modules/**
 **/*.map
+screenshots/**

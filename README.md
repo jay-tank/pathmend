@@ -22,17 +22,17 @@ Real examples:
 
 ## What it checks
 
-| File | Paths checked | Relative to |
-| --- | --- | --- |
-| `package.json` | `main` (with Node's `.js` / `index.js` fallbacks), `module`, `types`, `typings`, `browser`, `bin`, `exports` (including `*` patterns), `files`, `workspaces` | the package folder |
-| `tsconfig*.json`, `jsconfig*.json` | `extends` (relative paths only), `files`, `include`, `references` (folder must contain `tsconfig.json`), `compilerOptions.baseUrl` and `compilerOptions.typeRoots` | the tsconfig folder |
-| | `compilerOptions.paths` targets: a `*` target must match at least one file, any other target must resolve like a module (`.ts`, `.tsx`, `.d.ts`, `.js`, `.json`, ... or an `index` file) | the `baseUrl` of that tsconfig, or the one it inherits through relative `extends`, otherwise the tsconfig folder |
-| `Dockerfile`, `Dockerfile.*`, `*.Dockerfile`, `Containerfile` | `COPY` / `ADD` sources, shell and JSON form, line continuations, heredocs skipped | the build context from a Compose file that uses this Dockerfile, otherwise the Dockerfile folder (or a parent folder up to the workspace root) |
-| `docker-compose*.yml`, `compose*.yaml` | `build:` / `build.context`, `build.dockerfile` | the compose file folder / the context |
-| `.github/workflows/*.yml`, `.github/**/action.yml` | `working-directory` (workflow, job and step), local `uses: ./...` (must contain `action.yml`, `action.yaml` or `Dockerfile`), reusable `uses: ./.github/workflows/x.yml`, scripts started from `run:` (`./x.sh`, `bash scripts/x.sh`, `python tools/x.py`, `node x.js`, `source ./env.sh`) | the repository root, or the effective `working-directory` |
-| `.gitlab-ci.yml` | `include:` local files (string or `local:`), including `*` / `**` globs | the repository root |
-| `CODEOWNERS` (root, `.github/`, `docs/`, `.gitlab/`) | patterns without wildcards; `/path` and `dir/file` are anchored, a bare name matches anywhere | the repository root |
-| `.vscode/launch.json` | `program`, `cwd` that start with `${workspaceFolder}` or `${workspaceFolder:Name}` | that workspace folder |
+| File                                                          | Paths checked                                                                                                                                                                                                                                                                                | Relative to                                                                                                                                    |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package.json`                                                | `main` (with Node's `.js` / `index.js` fallbacks), `module`, `types`, `typings`, `browser`, `bin`, `exports` (including `*` patterns), `files`, `workspaces`, `scripts` : local script entry points (for example `tsx scripts/build.ts`, `node ./scripts/start.js`, `bash scripts/setup.sh`) | the package folder                                                                                                                             |
+| `tsconfig*.json`, `jsconfig*.json`                            | `extends` (relative paths only), `files`, `include`, `references` (folder must contain `tsconfig.json`), `compilerOptions.baseUrl` and `compilerOptions.typeRoots`                                                                                                                           | the tsconfig folder                                                                                                                            |
+|                                                               | `compilerOptions.paths` targets: a `*` target must match at least one file, any other target must resolve like a module (`.ts`, `.tsx`, `.d.ts`, `.js`, `.json`, ... or an `index` file)                                                                                                     | the `baseUrl` of that tsconfig, or the one it inherits through relative `extends`, otherwise the tsconfig folder                               |
+| `Dockerfile`, `Dockerfile.*`, `*.Dockerfile`, `Containerfile` | `COPY` / `ADD` sources, shell and JSON form, line continuations, heredocs skipped                                                                                                                                                                                                            | the build context from a Compose file that uses this Dockerfile, otherwise the Dockerfile folder (or a parent folder up to the workspace root) |
+| `docker-compose*.yml`, `compose*.yaml`                        | `build:` / `build.context`, `build.dockerfile`                                                                                                                                                                                                                                               | the compose file folder / the context                                                                                                          |
+| `.github/workflows/*.yml`, `.github/**/action.yml`            | `working-directory` (workflow, job and step), local `uses: ./...` (must contain `action.yml`, `action.yaml` or `Dockerfile`), reusable `uses: ./.github/workflows/x.yml`, scripts started from `run:` (`./x.sh`, `bash scripts/x.sh`, `python tools/x.py`, `node x.js`, `source ./env.sh`)   | the repository root, or the effective `working-directory`                                                                                      |
+| `.gitlab-ci.yml`                                              | `include:` local files (string or `local:`), including `*` / `**` globs                                                                                                                                                                                                                      | the repository root                                                                                                                            |
+| `CODEOWNERS` (root, `.github/`, `docs/`, `.gitlab/`)          | patterns without wildcards; `/path` and `dir/file` are anchored, a bare name matches anywhere                                                                                                                                                                                                | the repository root                                                                                                                            |
+| `.vscode/launch.json`                                         | `program`, `cwd` that start with `${workspaceFolder}` or `${workspaceFolder:Name}`                                                                                                                                                                                                           | that workspace folder                                                                                                                          |
 
 A glob is fine when it matches at least one file. Skipped on purpose: `COPY --from=<stage>`,
 URLs and git contexts, anything with `$VAR`, `${VAR}` or `${{ }}`, bare package specifiers
@@ -44,19 +44,19 @@ automatically, so `"main": "build/index.js"` is not reported before a build).
 
 ## Rules
 
-| Code | Meaning | Example |
-| --- | --- | --- |
-| **PM001** | package.json path not found | `"bin": { "tool": "bin/tool.js" }` after moving it to `lib/` |
-| **PM002** | tsconfig / jsconfig path not found | `"extends": "./tsconfig.bse.json"` |
-| **PM003** | Dockerfile COPY / ADD source not found | `COPY scripts/start.sh /usr/local/bin/` |
-| **PM004** | Compose build context / dockerfile not found | `context: ./services/wrker` |
-| **PM005** | GitHub Actions path not found | `uses: ./.github/actions/setpu`, `run: bash scripts/build.sh` |
-| **PM006** | CODEOWNERS path not found | `/docs/guid.md @docs-team` |
-| **PM007** | launch.json path not found | `"program": "${workspaceFolder}/src/server.js"` |
-| **PM008** | GitLab CI local include not found | `- local: ci/templates/tset.yml` |
-| **PM009** | Glob matches no files | `"files": ["docs/*.pdf"]`, `COPY config/*.yaml /app/` |
-| **PM010** | Resolves outside the workspace - not checked (Information) | `"main": "/etc/passwd"`, `../../elsewhere` |
-| **PM011** | COPY / ADD source outside the Docker build context | `COPY ../../src /src` with context `services/api` |
+| Code      | Meaning                                                    | Example                                                       |
+| --------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
+| **PM001** | package.json path not found                                | `"bin": { "tool": "bin/tool.js" }` after moving it to `lib/`  |
+| **PM002** | tsconfig / jsconfig path not found                         | `"extends": "./tsconfig.bse.json"`                            |
+| **PM003** | Dockerfile COPY / ADD source not found                     | `COPY scripts/start.sh /usr/local/bin/`                       |
+| **PM004** | Compose build context / dockerfile not found               | `context: ./services/wrker`                                   |
+| **PM005** | GitHub Actions path not found                              | `uses: ./.github/actions/setpu`, `run: bash scripts/build.sh` |
+| **PM006** | CODEOWNERS path not found                                  | `/docs/guid.md @docs-team`                                    |
+| **PM007** | launch.json path not found                                 | `"program": "${workspaceFolder}/src/server.js"`               |
+| **PM008** | GitLab CI local include not found                          | `- local: ci/templates/tset.yml`                              |
+| **PM009** | Glob matches no files                                      | `"files": ["docs/*.pdf"]`, `COPY config/*.yaml /app/`         |
+| **PM010** | Resolves outside the workspace - not checked (Information) | `"main": "/etc/passwd"`, `../../elsewhere`                    |
+| **PM011** | COPY / ADD source outside the Docker build context         | `COPY ../../src /src` with context `services/api`             |
 
 Each diagnostic sits on the exact path string, with source `PathMend`.
 
@@ -84,17 +84,17 @@ Only config files inside the workspace are edited. Renames done outside VS Code 
 
 ## Settings
 
-| Setting | Default | Description |
-| --- | --- | --- |
-| `pathmend.enabled` | `true` | Turn diagnostics on or off. |
-| `pathmend.exclude` | `**/node_modules/**`, `**/.git/**`, `**/dist/**` | Globs that are not scanned. Config files here are not read; references into them are not checked. |
-| `pathmend.ignoreReferences` | `**/build/**`, `**/out/**`, `**/coverage/**`, `**/target/**`, `**/.next/**` | Build output folders; references into them are not checked. |
-| `pathmend.disabledRules` | `[]` | Rule codes to turn off, e.g. `["PM006", "PM010"]`. |
-| `pathmend.severity` | `warning` | `error`, `warning`, `information` or `hint` for broken references. PM010 is always Information. |
-| `pathmend.reportOutsideWorkspace` | `true` | Show PM010 for paths outside the workspace. |
-| `pathmend.renameUpdates` | `prompt` | `off` to never offer rename updates. |
-| `pathmend.maxIndexedFiles` | `20000` | Files indexed for glob matching and suggestions. |
-| `pathmend.maxConfigFileSizeKB` | `512` | Larger config files are skipped. |
+| Setting                           | Default                                                                     | Description                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `pathmend.enabled`                | `true`                                                                      | Turn diagnostics on or off.                                                                       |
+| `pathmend.exclude`                | `**/node_modules/**`, `**/.git/**`, `**/dist/**`                            | Globs that are not scanned. Config files here are not read; references into them are not checked. |
+| `pathmend.ignoreReferences`       | `**/build/**`, `**/out/**`, `**/coverage/**`, `**/target/**`, `**/.next/**` | Build output folders; references into them are not checked.                                       |
+| `pathmend.disabledRules`          | `[]`                                                                        | Rule codes to turn off, e.g. `["PM006", "PM010"]`.                                                |
+| `pathmend.severity`               | `warning`                                                                   | `error`, `warning`, `information` or `hint` for broken references. PM010 is always Information.   |
+| `pathmend.reportOutsideWorkspace` | `true`                                                                      | Show PM010 for paths outside the workspace.                                                       |
+| `pathmend.renameUpdates`          | `prompt`                                                                    | `off` to never offer rename updates.                                                              |
+| `pathmend.maxIndexedFiles`        | `20000`                                                                     | Files indexed for glob matching and suggestions.                                                  |
+| `pathmend.maxConfigFileSizeKB`    | `512`                                                                       | Larger config files are skipped.                                                                  |
 
 ## Activity bar and commands
 
@@ -146,6 +146,10 @@ the window regains focus and once a minute, even where the editor's file watcher
 - A rename update is skipped for references inside a config file that was itself moved.
 - Out of scope by design: `env_file` and `${VAR}` in Compose files, and script line endings,
   shebangs and executable bits.
+
+## Contributing
+
+For development setup, test commands, and fixture layout, see [readme-dev.md](readme-dev.md).
 
 ## License
 

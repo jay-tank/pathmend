@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Check local files used by `package.json` scripts.** Find missing entry points in commands such as `tsx scripts/build.ts`, `node ./scripts/start.js` and `bash scripts/setup.sh`, with the missing path highlighted as a PM001 diagnostic.
+- **Keep script commands in sync when files move.** When you rename or move a referenced file in VS Code, **Update all** can fix paths inside `package.json` scripts and `bin` entries while keeping command arguments and path formatting intact.
+
+### Notes
+
+- PathMend only checks recognizable local script paths. Package commands, URLs, variable substitutions and ambiguous shell expressions are left alone to avoid false warnings. Scripts are never executed.
+
 ## 0.1.0 - Initial release
 
 - Checks paths in package.json, tsconfig / jsconfig (including `compilerOptions.baseUrl`, `typeRoots` and `paths`, resolved against the own or inherited `baseUrl`), Dockerfile / Containerfile COPY and ADD, Compose build context and dockerfile, GitHub Actions workflows and composite actions, GitLab CI local includes, CODEOWNERS and `.vscode/launch.json`.

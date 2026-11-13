@@ -1,0 +1,19 @@
+{
+  "name": "script-path-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "bin": {
+    "build-registry": "./scripts/build-registry.ts"
+  },
+  "scripts": {
+    "registry:build": "node scripts/build-registry.ts --check",
+    "registry:check": "node scripts/build-registry.ts",
+    "other": "npm run registry:build",
+    "existingBash": "bash tools/present.sh",
+    "existingRelative": "./tools/present.sh",
+    "npmCommand": "npm run build",
+    "packageBinary": "eslint .",
+    "envVariable": "node $ENTRYPOINT",
+    "remote": "node https://example.com/script.js"
+  }
+}
