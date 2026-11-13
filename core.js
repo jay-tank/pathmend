@@ -1690,12 +1690,24 @@ function analyze(opts) {
     }
     if (disabled.has(code)) continue;
     let fix = null;
-    if (r.state === "missing" && !r.anywhere && r.root && ref.escape !== "noedit") {
-      const confine = r.confine ? toPosix(path.relative(r.root, r.base)) : "";
-      const best = opts.index.suggest(r.root, r.rel, ref.kind, confine && !confine.startsWith("..") ? confine : "");
-      if (best) {
-        const newText = formatPath(ref, path.join(r.root, best), r.base);
-        if (newText !== ref.display && encodeFor(ref, newText) !== null) fix = newText;
+    if (ref.escape !== "noedit" && !r.anywhere) {
+      // An absolute script path is still PM010, but a safe replacement may
+      // exist in the workspace index. Never inspect the outside destination.
+      const outsideScript = r.state === "outside" &&
+        ref.label.startsWith("package.json scripts.") && path.isAbsolute(ref.value);
+      const root = outsideScript ? opts.guard.rootOf(ref.base) : r.root;
+      if ((r.state === "missing" || outsideScript) && root) {
+        const confine = r.confine ? toPosix(path.relative(root, ref.base)) : "";
+        const best = opts.index.suggest(root, outsideScript ? ref.value : r.rel,
+          ref.kind, confine && !confine.startsWith("..") ? confine : "");
+        if (best) {
+          const target = path.join(root, best);
+          // The indexed file must still exist inside the workspace.
+          if (!outsideScript || opts.guard.status(target).state === "file") {
+            const newText = formatPath(ref, target, ref.base);
+            if (newText !== ref.display && encodeFor(ref, newText) !== null) fix = newText;
+          }
+        }
       }
     }
     findings.push({ file: ref.file, line: ref.line, col: ref.col, endCol: ref.endCol, code, message, info, fix, ref });
