@@ -879,10 +879,10 @@ function yamlRef(c, s, o) {
 const PACKAGE_SCRIPT_COMMAND =
   /(?:^|&&|\|\||[;|])\s*(?:(?:env|cross-env)\s+(?:[A-Za-z_]\w*=[^\s;&|]+\s+)*)?(?:(?:node|tsx|ts-node|ts-node-esm|bun|deno|python3?|bash|sh|zsh|dash|ksh|ruby|perl|pwsh)\s+(?:--?[\w-]+(?:=[^\s;&|]+)?\s+)*([^\s;&|"'\x60$()<>]+)|(\.\.?\/[^\s;&|"'\x60$()<>]+))/g;
 const PACKAGE_SCRIPT_EXT = /\.(?:[cm]?[jt]sx?|py|sh|bash|zsh|rb|pl|ps1)$/i;
-// File-valued options are recognized by their option name, not the package binary.
-// Restrict values to explicit local paths or filenames with extensions.
-const PACKAGE_SCRIPT_CONFIG_OPTION =
-  /(?:^|\s)--(?:config|config-file|config-path)(?:\s+|=)([^\s;&|"'`$()<>]+)/g;
+// Recognize local file operands of long CLI options without an option-name allowlist.
+// Only path-like values are checked; package names and scalar arguments are ignored.
+const PACKAGE_SCRIPT_OPTION =
+  /(?:^|\s)--[a-z][\w-]*(?:\s+|=)([^\s;&|"'\x60$()<>]+)/gi;
 
 function packageScriptRefs(c, node, label, base, ctx) {
   if (!node || node.type !== "string" || !node.value) return [];
@@ -921,9 +921,9 @@ function packageScriptRefs(c, node, label, base, ctx) {
         if (!optionBase) continue;
       }
     }
-    PACKAGE_SCRIPT_CONFIG_OPTION.lastIndex = 0;
+    PACKAGE_SCRIPT_OPTION.lastIndex = 0;
     let option;
-    while ((option = PACKAGE_SCRIPT_CONFIG_OPTION.exec(body))) {
+    while ((option = PACKAGE_SCRIPT_OPTION.exec(body))) {
       const token = option[1];
       if (!token || token.includes("\\") || isGlob(token) || isUrl(token) || hasControl(token)) continue;
       if (!/^(?:\.\.?\/|\/)/.test(token) && !/\.[a-z\d]{1,8}$/i.test(token)) continue;
