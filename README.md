@@ -42,6 +42,29 @@ in `extends`, `paths` in a tsconfig that may inherit its `baseUrl` from a packag
 output folders (see `pathmend.ignoreReferences`; the `outDir` of your tsconfigs is added
 automatically, so `"main": "build/index.js"` is not reported before a build).
 
+## Check paths in package.json scripts
+
+PathMend checks local script files referenced by `package.json` scripts, not just fields such as `main`, `bin`, and `exports`. If a script refers to a file that no longer exists, it highlights **the missing file path** with a PM001 diagnostic.
+
+For example:
+
+```json
+{
+  "scripts": {
+    "build": "tsx scripts/build.ts --watch",
+    "start": "node ./scripts/server.js",
+    "setup": "bash scripts/setup.sh",
+    "check": "npm run build"
+  }
+}
+```
+
+If `scripts/build.ts` is moved or deleted, PathMend flags that path in the `build` command. When you rename or move a referenced file through **VS Code**, PathMend can offer **Update all** to fix matching script paths alongside other config references. It preserves the rest of each command, including arguments such as `--watch`, and the original `./` path style. **Preview** lets you review the edits first.
+
+Common local entry points are recognized for JavaScript/TypeScript runners (such as `node` and `tsx`), shell scripts, Python, Ruby, Perl, and PowerShell. Direct relative script paths and recognizable commands chained with `&&` are also checked.
+
+To avoid false warnings, PathMend skips package commands such as `vite build` or `npm run build`, `--eval` snippets, URLs, variable-based paths such as `$SCRIPT`, and shell expressions it cannot reliably interpret. It checks whether files exist; it does **not** run scripts.
+
 ## Rules
 
 | Code | Meaning | Example |
