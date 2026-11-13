@@ -11,19 +11,19 @@ npm install
 npm test
 ```
 
-`npm test`
-
 ## Test commands
 
 | Command                                                     | Runs                                                                                                | Needs VS Code |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------- |
-| `npm test`                                                  | Vitest,run All Vitest tests. To add a test, create a `*.test.js`, `*.test.mjs`, or `*.spec.*` file. | No            |
+| `npm test`                                                  | Run all Vitest tests. To add a test, create a `*.test.js`, `*.test.mjs`, or `*.spec.*` file. | No            |
 | `npm run test:watch`                                        | Vitest, re-running as files change                                                                  | No            |
 | `npx vitest run test/package-json/package-scripts.test.mjs` | Package-script tests only                                                                           | No            |
 | `node test/unit.js`                                         | Core diagnostics against the sample workspace                                                       | No            |
 | `node test/run-vscode.js`                                   | Editor integration tests (trusted and untrusted workspaces)                                         | Yes           |
 
-The trusted VS Code run also executes `test/vscode/usecases.js` and `test/vscode/monorepo.js` after the original functional suite. It checks `package.json` script operands (missing and existing scripts, chained commands, package binaries, variables and URLs), GitHub Actions shell-script references, and Docker/Compose/build-output false positives. Both suites use the tracked `test/fixtures/ws/packages/script-cases/` fixture, copied to an isolated workspace by `test/prepare.js`. Tests modify and restore only that copied fixture; they never execute script commands or modify tracked source files. The focused rename regression suite (`test/vscode/monorepo.js`) uses one `bin` reference and two `node` script references to the same file. It renames that file through VS Code, accepts PathMend’s **Update all** prompt, and checks the updated paths and cleared diagnostics. It deliberately avoids copying the entire MoyaForge manifest. Both suites run automatically with `node test/run-vscode.js` or `PM_SCREENSHOTS=0 node test/run-vscode.js`.\n\n**Note:** `test/unit.js` and `test/run-vscode.js` are not Vitest tests, so `npm test` skips them. Run them when you change core diagnostics, rename handling, or editor behavior.
+The trusted VS Code run also executes `test/vscode/usecases.js` and `test/vscode/monorepo.js` after the original functional suite. It checks `package.json` script operands (missing and existing scripts, chained commands, package binaries, variables and URLs), GitHub Actions shell-script references, and Docker/Compose/build-output false positives. Both suites use the tracked `test/fixtures/ws/packages/script-cases/` fixture, copied to an isolated workspace by `test/prepare.js`. Tests modify and restore only that copied fixture; they never execute script commands or modify tracked source files. The focused rename regression suite (`test/vscode/monorepo.js`) uses one `bin` reference and two `node` script references to the same file. It renames that file through VS Code, accepts PathMend’s **Update all** prompt, and checks the updated paths and cleared diagnostics. It deliberately avoids copying the entire MoyaForge manifest. Both suites run automatically with `node test/run-vscode.js` or `PM_SCREENSHOTS=0 node test/run-vscode.js`.
+
+**Note:** `test/unit.js` and `test/run-vscode.js` are not Vitest tests, so `npm test` skips them. Run them when you change core diagnostics, rename handling, or editor behavior.
 
 The VS Code runner launches an isolated editor and runs `test/vscode/index.js`. By default, `@vscode/test-electron` downloads a VS Code executable (cached across runs). Set `VSCODE_EXECUTABLE_PATH` to an existing **VS Code Electron executable** to avoid downloading it, or `VSCODE_TEST_VERSION` to select a specific download. The `code` command-line shell wrapper is not a substitute for the executable.
 
