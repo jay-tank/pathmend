@@ -61,6 +61,11 @@ describe("isolated script path extraction", () => {
     expect(scriptPaths.extractScriptPaths(command, "/workspace", new Map())).toEqual([]);
   });
 
+  it("does not classify JavaScript expressions as file paths", () => {
+    const script = "node --eval console.log(1) && node --eval console.error(2)";
+    expect(scriptPaths.extractScriptPaths(script, "/workspace")).toEqual([]);
+  });
+
   it("ignores URL, variable, package name, and scalar option arguments", () => {
     const command = "tool --url https://example.test/file.js --input $ENTRY --plugin @scope/pkg --mode production";
     expect(scriptPaths.extractScriptPaths(command, "/workspace")).toEqual([]);
@@ -253,12 +258,14 @@ describe("package.json script paths", () => {
       configValue: "vite --config production",
       configUnrelated: "vite --mode production",
       scalarOption: "tool --quality high",
+      evalExpression: "node --eval console.log(1)",
+      dottedExpression: "node --eval console.error(2)",
       packageOption: "tool --plugin @scope/example",
       remoteOption: "tool --asset https://example.test/preset.js",
     });
     fs.writeFileSync(manifest, JSON.stringify(packageData, null, 2) + "\n");
     const refs = analyze().refs.filter(r =>
-      /scripts.(?:config(?:Variable|Url|Value|Unrelated)|scalarOption|packageOption|remoteOption)/.test(r.label));
+      /scripts.(?:config(?:Variable|Url|Value|Unrelated)|scalarOption|evalExpression|dottedExpression|packageOption|remoteOption)/.test(r.label));
     expect(refs).toEqual([]);
   });
 
