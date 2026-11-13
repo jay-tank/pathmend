@@ -109,4 +109,66 @@ describe("package.json script paths", () => {
     expect(copy.scripts.npm).toBe("npm run build");
     expect(analyze().findings).toEqual([]);
   });
+  it("suggests an indexed workspace file for an outside absolute path", () => {
+    const script = path.join(scratch, "scripts", "prepare-github-cli.ts");
+    fs.writeFileSync(script, "");
+    const original = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    original.scripts.prepare =
+      "npm run build --workspace @moyarich/moyaforge-cli && node /prepare-github-cli.ts";
+    original.main = "/prepare-github-cli.ts";
+    fs.writeFileSync(manifest, JSON.stringify(original, null, 2) + "\n");
+
+    const guard = core.createGuard(fs, [scratch]);
+    const index = new core.FileIndex();
+    index.add(scratch, "scripts/prepare-github-cli.ts");
+    const result = core.analyze({
+      configs: [{ file: manifest, text: fs.readFileSync(manifest, "utf8") }],
+      roots: [{ path: scratch, name: "scratch" }],
+      guard,
+      index,
+      settings: {},
+    });
+    const findings = result.findings.filter(f => f.ref.value === "/prepare-github-cli.ts");
+    expect(findings).toHaveLength(2);
+    expect(findings.map(f => f.code)).toEqual(["PM010", "PM010"]);
+    expect(findings.map(f => f.fix)).toEqual([
+      "scripts/prepare-github-cli.ts",
+      "scripts/prepare-github-cli.ts",
+    ]);
+    expect(findings.every(f => f.info)).toBe(true);
+
+    const lines = fs.readFileSync(manifest, "utf8").split("\n");
+    for (const finding of findings) {
+      const { ref, fix } = finding;
+      expect(lines[ref.line].slice(ref.col, ref.endCol)).toBe(ref.raw);
+      lines[ref.line] = lines[ref.line].slice(0, ref.col)
+        + core.encodeFor(ref, fix) + lines[ref.line].slice(ref.endCol);
+    }
+    fs.writeFileSync(manifest, lines.join("\n"));
+    const updated = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    expect(updated.scripts.prepare).toBe(
+      "npm run build --workspace @moyarich/moyaforge-cli && node scripts/prepare-github-cli.ts"
+    );
+    expect(updated.main).toBe("scripts/prepare-github-cli.ts");
+  });
+
+  it("does not suggest missing or ignored candidates for outside paths", () => {
+    const source = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    source.scripts.prepare = "node /prepare-github-cli.ts";
+    fs.writeFileSync(manifest, JSON.stringify(source, null, 2) + "\n");
+    const guard = core.createGuard(fs, [scratch]);
+    const index = new core.FileIndex();
+    index.add(scratch, "scripts/prepare-github-cli.ts");
+    const run = (settings) => core.analyze({
+      configs: [{ file: manifest, text: fs.readFileSync(manifest, "utf8") }],
+      roots: [{ path: scratch, name: "scratch" }],
+      guard,
+      index,
+      settings,
+    }).findings.find(f => f.ref.label === "package.json scripts.prepare");
+    expect(run({}).fix).toBeNull();
+    fs.writeFileSync(path.join(scratch, "scripts", "prepare-github-cli.ts"), "");
+    expect(run({ ignoreReferences: ["**/prepare-github-cli.ts"] }).fix).toBeNull();
+  });
+
 });
