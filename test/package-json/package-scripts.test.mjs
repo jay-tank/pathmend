@@ -229,6 +229,47 @@ describe("package.json script paths", () => {
     expect(refs).toEqual([]);
   });
 
+  it.each([
+    ["--config", "vite build --config ./configs/missing.js"],
+    ["--config=", "vite build --config=./configs/missing.js"],
+    ["--config-file", "tool --config-file ./configs/missing.js"],
+    ["--config-path", "tool --config-path=./configs/missing.js"],
+    ["chained", "echo ready && vite build --config ./configs/missing.js"],
+  ])("reports missing file arguments for %s", (_name, command) => {
+    const data = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    data.scripts.checkConfig = command;
+    fs.writeFileSync(manifest, JSON.stringify(data, null, 2) + "\n");
+    const { findings } = analyze();
+    const matches = findings.filter(f => f.ref.label === "package.json scripts.checkConfig");
+    expect(matches).toHaveLength(1);
+    expect(matches[0].code).toBe("PM001");
+    expect(matches[0].ref.value).toBe("./configs/missing.js");
+    const sourceLine = fs.readFileSync(manifest, "utf8").split("\n")[matches[0].ref.line];
+    expect(sourceLine.slice(matches[0].ref.col, matches[0].ref.endCol))
+      .toBe("./configs/missing.js");
+
+    fs.mkdirSync(path.join(scratch, "configs"), { recursive: true });
+    fs.writeFileSync(path.join(scratch, "configs", "missing.js"), "");
+    expect(analyze().findings.filter(f =>
+      f.ref.label === "package.json scripts.checkConfig")).toEqual([]);
+  });
+
+  it("does not mistake workspace names or unrelated npm arguments for paths", () => {
+    const data = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    Object.assign(data.scripts, {
+      workspaceName: "npm exec --workspace @moyarich/moyaforge-playground -- vite build",
+      npmPackage: "npm exec -- vite build --mode production",
+      unknownWorkspace: "npm exec --workspace @missing/pkg -- vite build --config ./missing.js",
+      configUrl: "vite build --config https://example.test/config.js",
+      configVariable: "vite build --config $CONFIG",
+      configUnrelated: "vite build --mode development",
+    });
+    fs.writeFileSync(manifest, JSON.stringify(data, null, 2) + "\n");
+    const refs = analyze().refs.filter(r =>
+      /scripts.(?:workspaceName|npmPackage|unknownWorkspace|configUrl|configVariable|configUnrelated)$/.test(r.label));
+    expect(refs).toEqual([]);
+  });
+
   it("does not suggest missing or ignored candidates for outside paths", () => {
     const source = JSON.parse(fs.readFileSync(manifest, "utf8"));
     source.scripts.prepare = "node /prepare-github-cli.ts";
