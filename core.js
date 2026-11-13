@@ -10,6 +10,7 @@
  */
 
 const path = require("path");
+const { extractScriptPaths } = require("./package-scripts");
 
 const RULES = {
   PM001: "package.json path not found",
@@ -874,73 +875,19 @@ function yamlRef(c, s, o) {
   );
 }
 
-// Only recognize file operands in known script-launch commands. Other arguments,
-// package binaries and shell expressions are deliberately not treated as paths.
-const PACKAGE_SCRIPT_COMMAND =
-  /(?:^|&&|\|\||[;|])\s*(?:(?:env|cross-env)\s+(?:[A-Za-z_]\w*=[^\s;&|]+\s+)*)?(?:(?:node|tsx|ts-node|ts-node-esm|bun|deno|python3?|bash|sh|zsh|dash|ksh|ruby|perl|pwsh)\s+(?:--?[\w-]+(?:=[^\s;&|]+)?\s+)*([^\s;&|"'\x60$()<>]+)|(\.\.?\/[^\s;&|"'\x60$()<>]+))/g;
-const PACKAGE_SCRIPT_EXT = /\.(?:[cm]?[jt]sx?|py|sh|bash|zsh|rb|pl|ps1)$/i;
-// Recognize local file operands of long CLI options without an option-name allowlist.
-// Only path-like values are checked; package names and scalar arguments are ignored.
-const PACKAGE_SCRIPT_OPTION =
-  /(?:^|\s)--[a-z][\w-]*(?:\s+|=)([^\s;&|"'\x60$()<>]+)/gi;
-
 function packageScriptRefs(c, node, label, base, ctx) {
   if (!node || node.type !== "string" || !node.value) return [];
   // JSON escapes change source offsets. Do not attempt unsafe edits in those strings.
   if (c.text.slice(node.start, node.end) !== node.value) return [];
-  const refs = [];
-  PACKAGE_SCRIPT_COMMAND.lastIndex = 0;
-  let match;
-  while ((match = PACKAGE_SCRIPT_COMMAND.exec(node.value))) {
-    const token = match[1] || match[2];
-    if (!token || token.includes("\\") || isGlob(token) || isUrl(token) || hasControl(token)) continue;
-    // A bare operand must be a recognizable local file, never an npm package name.
-    if (!token.startsWith("./") && !token.startsWith("../") && !PACKAGE_SCRIPT_EXT.test(token)) continue;
-    if (token.startsWith("-") || /^(?:https?:|file:)/i.test(token)) continue;
-    const offset = node.start + match.index + match[0].lastIndexOf(token);
-    const position = posOf(c.starts, offset);
-    refs.push(mkRef({
+  return extractScriptPaths(node.value, base, ctx.packageDirs).map(({ value, offset, base: scriptBase }) => {
+    const position = posOf(c.starts, node.start + offset);
+    return mkRef({
       file: c.file, line: position.line, col: position.col,
-      endCol: position.col + token.length, value: token,
-      escape: "json", code: "PM001", base, kind: "file",
+      endCol: position.col + value.length, value,
+      escape: "json", code: "PM001", base: scriptBase, kind: "file",
       label: "package.json " + label,
-    }));
-  }
-  // Arguments after npm exec -- are evaluated from the selected workspace's
-  // directory. Without a known workspace manifest, do not guess its location.
-  const segments = /(?:^|&&|\|\||[;|])([^;&|]*)/g;
-  let segment;
-  while ((segment = segments.exec(node.value))) {
-    const body = segment[1];
-    const bodyStart = segment.index + segment[0].lastIndexOf(body);
-    let optionBase = base;
-    if (/(?:^|\s)npm\s+(?:exec|x)\b/.test(body)) {
-      const workspace = /(?:^|\s)(?:--workspace(?:=|\s+)|-w\s+)([^\s;&|]+)/.exec(body);
-      if (workspace) {
-        optionBase = ctx.packageDirs.get(workspace[1]);
-        if (!optionBase) continue;
-      }
-    }
-    PACKAGE_SCRIPT_OPTION.lastIndex = 0;
-    let option;
-    while ((option = PACKAGE_SCRIPT_OPTION.exec(body))) {
-      const token = option[1];
-      if (!token || token.includes("\\") || isGlob(token) || isUrl(token) || hasControl(token)) continue;
-      if (!/^(?:\.\.?\/|\/)/.test(token) && !/\.[a-z\d]{1,8}$/i.test(token)) continue;
-      const offset = node.start + bodyStart + option.index + option[0].lastIndexOf(token);
-      const position = posOf(c.starts, offset);
-      // A direct script operand may already have been identified at this range.
-      if (refs.some(ref => ref.line === position.line && ref.col === position.col &&
-        ref.endCol === position.col + token.length)) continue;
-      refs.push(mkRef({
-        file: c.file, line: position.line, col: position.col,
-        endCol: position.col + token.length, value: token,
-        escape: "json", code: "PM001", base: optionBase, kind: "file",
-        label: "package.json " + label,
-      }));
-    }
-  }
-  return refs;
+    });
+  });
 }
 
 function extractPackage(c, ctx) {
