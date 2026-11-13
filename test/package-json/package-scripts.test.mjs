@@ -222,10 +222,13 @@ describe("package.json script paths", () => {
       configUrl: "vite --config https://example.test/vite.config.js",
       configValue: "vite --config production",
       configUnrelated: "vite --mode production",
+      scalarOption: "tool --quality high",
+      packageOption: "tool --plugin @scope/example",
+      remoteOption: "tool --asset https://example.test/preset.js",
     });
     fs.writeFileSync(manifest, JSON.stringify(packageData, null, 2) + "\n");
     const refs = analyze().refs.filter(r =>
-      /scripts.config(?:Variable|Url|Value|Unrelated)/.test(r.label));
+      /scripts.(?:config(?:Variable|Url|Value|Unrelated)|scalarOption|packageOption|remoteOption)/.test(r.label));
     expect(refs).toEqual([]);
   });
 
@@ -234,6 +237,8 @@ describe("package.json script paths", () => {
     ["--config=", "vite build --config=./configs/missing.js"],
     ["--config-file", "tool --config-file ./configs/missing.js"],
     ["--config-path", "tool --config-path=./configs/missing.js"],
+    ["--input", "tool --input ./configs/missing.js"],
+    ["--arbitrary-file-option", "tool --arbitrary-file-option=./configs/missing.js"],
     ["chained", "echo ready && vite build --config ./configs/missing.js"],
   ])("reports missing file arguments for %s", (_name, command) => {
     const data = JSON.parse(fs.readFileSync(manifest, "utf8"));
