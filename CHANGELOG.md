@@ -4,13 +4,12 @@
 
 ### Added
 
-- Detect local file paths referenced by `package.json` scripts, including common JavaScript, TypeScript, Python, shell, Ruby, Perl and PowerShell entry points (for example, `tsx scripts/build.ts`, `node ./scripts/start.js`, and `bash scripts/setup.sh`).
-- Include script paths in existing PM001 missing-file diagnostics and rename/move updates, preserving the surrounding command and JSON formatting.
-- Vitest regression coverage for script path detection, real file and directory moves, and commands that should not be interpreted as local file paths. Tests use an isolated temporary copy of `test/fixtures/package-json/package.json` and clean up afterward.
+- **Check local files used by `package.json` scripts.** Find missing entry points in commands such as `tsx scripts/build.ts`, `node ./scripts/start.js` and `bash scripts/setup.sh`, with the missing path highlighted as a PM001 diagnostic.
+- **Keep script commands in sync when files move.** When you rename or move a referenced file in VS Code, **Update all** can fix paths inside `package.json` scripts and `bin` entries while keeping command arguments and path formatting intact.
 
 ### Notes
 
-- Only recognizable local script entry points are checked; bare package commands, variable substitutions, URLs and ambiguous shell expressions are deliberately skipped.
+- PathMend only checks recognizable local script paths. Package commands, URLs, variable substitutions and ambiguous shell expressions are left alone to avoid false warnings. Scripts are never executed.
 
 ## 0.1.0 - Initial release
 
