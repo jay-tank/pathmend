@@ -152,6 +152,83 @@ describe("package.json script paths", () => {
     expect(updated.main).toBe("scripts/prepare-github-cli.ts");
   });
 
+  it("checks config-file options relative to npm exec workspace and updates renamed files", () => {
+    const workspaceDir = path.join(scratch, "packages", "moyaforge-playground");
+    const workspaceManifest = path.join(workspaceDir, "package.json");
+    const configDir = path.join(scratch, "tests", "vite-consumer-build");
+    const correctConfig = path.join(configDir, "vite.config.js");
+    fs.mkdirSync(workspaceDir, { recursive: true });
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(workspaceManifest, JSON.stringify({
+      name: "@moyarich/moyaforge-playground",
+      version: "1.0.0",
+    }));
+    fs.writeFileSync(correctConfig, "export default {};\n");
+
+    const packageData = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    const prefix = "npm exec --workspace @moyarich/moyaforge-playground -- vite build --config ";
+    packageData.scripts["test:consumer:browser"] =
+      prefix + "../../vite-consumer-build/vite.config.js";
+    fs.writeFileSync(manifest, JSON.stringify(packageData, null, 2) + "\n");
+
+    const inspect = () => {
+      const guard = core.createGuard(fs, [scratch]);
+      const configs = [manifest, workspaceManifest].map(file => ({
+        file, text: fs.readFileSync(file, "utf8"),
+      }));
+      const result = core.analyze({
+        configs,
+        roots: [{ path: scratch, name: "scratch" }],
+        guard,
+        index: new core.FileIndex(),
+        settings: {},
+      });
+      return { ...result, guard };
+    };
+
+    const invalid = inspect();
+    const finding = invalid.findings.find(f =>
+      f.ref.label === "package.json scripts.test:consumer:browser");
+    expect(finding).toBeDefined();
+    expect(finding.code).toBe("PM001");
+    expect(finding.ref.value).toBe("../../vite-consumer-build/vite.config.js");
+    expect(finding.ref.base).toBe(workspaceDir);
+    const line = fs.readFileSync(manifest, "utf8").split("\n")[finding.ref.line];
+    expect(line.slice(finding.ref.col, finding.ref.endCol)).toBe(finding.ref.value);
+
+    packageData.scripts["test:consumer:browser"] =
+      prefix + "../../tests/vite-consumer-build/vite.config.js";
+    fs.writeFileSync(manifest, JSON.stringify(packageData, null, 2) + "\n");
+    const valid = inspect();
+    expect(valid.findings.filter(f =>
+      f.ref.label === "package.json scripts.test:consumer:browser")).toEqual([]);
+
+    const renamedConfig = path.join(configDir, "renamed.config.js");
+    const plan = core.planRenames(valid.refs, [
+      { from: correctConfig, to: renamedConfig },
+    ], valid.guard.inside);
+    expect(plan).toHaveLength(1);
+    expect(plan[0].newText).toBe("../../tests/vite-consumer-build/renamed.config.js");
+    fs.renameSync(correctConfig, renamedConfig);
+    applyPlan(plan);
+    expect(inspect().findings.filter(f =>
+      f.ref.label === "package.json scripts.test:consumer:browser")).toEqual([]);
+  });
+
+  it("ignores non-file values and variables passed to config options", () => {
+    const packageData = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    Object.assign(packageData.scripts, {
+      configVariable: "vite --config $CONFIG",
+      configUrl: "vite --config https://example.test/vite.config.js",
+      configValue: "vite --config production",
+      configUnrelated: "vite --mode production",
+    });
+    fs.writeFileSync(manifest, JSON.stringify(packageData, null, 2) + "\n");
+    const refs = analyze().refs.filter(r =>
+      /scripts.config(?:Variable|Url|Value|Unrelated)/.test(r.label));
+    expect(refs).toEqual([]);
+  });
+
   it("does not suggest missing or ignored candidates for outside paths", () => {
     const source = JSON.parse(fs.readFileSync(manifest, "utf8"));
     source.scripts.prepare = "node /prepare-github-cli.ts";
