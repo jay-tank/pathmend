@@ -69,25 +69,57 @@ async function launch(mode, extraArgs) {
     const want = path.join(shotDir, "shot-" + mode);
     if (!fs.existsSync(want)) return;
     fs.unlinkSync(want);
+    let screenshotOk = false;
     try {
-      const display = process.env.DISPLAY || ":99";
-      let win = "root";
-      try {
-        const ids = execFileSync("xdotool", ["search", "--name", "pathmend-shot"], { env: Object.assign({}, process.env, { DISPLAY: display }) }).toString().trim().split(/\s+/).filter(Boolean);
-        if (ids.length) {
-          win = ids[ids.length - 1];
-          execFileSync("xdotool", ["windowraise", win], { env: Object.assign({}, process.env, { DISPLAY: display }) });
-          execFileSync("sleep", ["1"]);
+      if (process.platform === "darwin") {
+        // macOS ships screencapture; ImageMagick's import is not installed by default.
+        execFileSync("screencapture", ["-x", shot]);
+      } else if (process.platform === "win32") {
+        // PowerShell and System.Drawing are included in Windows PowerShell 5.1.
+        // Capture the full virtual desktop without third-party dependencies.
+        const script = [
+          "Add-Type -AssemblyName System.Windows.Forms",
+          "Add-Type -AssemblyName System.Drawing",
+          "$bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen",
+          "$bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)",
+          "$graphics = [System.Drawing.Graphics]::FromImage($bitmap)",
+          "try {",
+          "  $graphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bitmap.Size)",
+          "  $bitmap.Save($env:PM_SCREENSHOT_PATH, [System.Drawing.Imaging.ImageFormat]::Png)",
+          "} finally {",
+          "  $graphics.Dispose()",
+          "  $bitmap.Dispose()",
+          "}",
+        ].join("\n");
+        execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+          env: Object.assign({}, process.env, { PM_SCREENSHOT_PATH: shot }),
+        });
+      } else {
+        const display = process.env.DISPLAY || ":99";
+        let win = "root";
+        try {
+          const ids = execFileSync("xdotool", ["search", "--name", "pathmend-shot"], {
+            env: Object.assign({}, process.env, { DISPLAY: display }),
+          }).toString().trim().split(/\\s+/).filter(Boolean);
+          if (ids.length) {
+            win = ids[ids.length - 1];
+            execFileSync("xdotool", ["windowraise", win], {
+              env: Object.assign({}, process.env, { DISPLAY: display }),
+            });
+          }
+        } catch (_) {
+          win = "root";
         }
-      } catch (_) {
-        win = "root";
+        execFileSync("import", ["-window", win, "-display", display, shot]);
       }
-      execFileSync("import", ["-window", win, "-display", display, shot]);
-      console.log("screenshot: " + shot);
+      screenshotOk = fs.existsSync(shot) && fs.statSync(shot).size > 0;
+      if (screenshotOk) console.log("screenshot: " + shot);
+      else console.log("screenshot failed: no image was created");
     } catch (e) {
       console.log("screenshot failed: " + e.message);
     }
-    fs.writeFileSync(path.join(shotDir, "shot-done-" + mode), "1");
+    // The editor must distinguish a completed attempt from a successful capture.
+    fs.writeFileSync(path.join(shotDir, "shot-done-" + mode), screenshotOk ? "ok" : "failed");
   }, 300);
   const status = await exited;
   clearTimeout(killer);

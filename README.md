@@ -24,7 +24,7 @@ Real examples:
 
 | File | Paths checked | Relative to |
 | --- | --- | --- |
-| `package.json` | `main` (with Node's `.js` / `index.js` fallbacks), `module`, `types`, `typings`, `browser`, `bin`, `exports` (including `*` patterns), `files`, `workspaces` | the package folder |
+| `package.json` | `main` (with Node's `.js` / `index.js` fallbacks), `module`, `types`, `typings`, `browser`, `bin`, `exports` (including `*` patterns), `files`, `workspaces`, local script entry points (for example `tsx scripts/build.ts`, `node ./scripts/start.js`, `bash scripts/setup.sh`) | the package folder |
 | `tsconfig*.json`, `jsconfig*.json` | `extends` (relative paths only), `files`, `include`, `references` (folder must contain `tsconfig.json`), `compilerOptions.baseUrl` and `compilerOptions.typeRoots` | the tsconfig folder |
 | | `compilerOptions.paths` targets: a `*` target must match at least one file, any other target must resolve like a module (`.ts`, `.tsx`, `.d.ts`, `.js`, `.json`, ... or an `index` file) | the `baseUrl` of that tsconfig, or the one it inherits through relative `extends`, otherwise the tsconfig folder |
 | `Dockerfile`, `Dockerfile.*`, `*.Dockerfile`, `Containerfile` | `COPY` / `ADD` sources, shell and JSON form, line continuations, heredocs skipped | the build context from a Compose file that uses this Dockerfile, otherwise the Dockerfile folder (or a parent folder up to the workspace root) |
@@ -146,6 +146,10 @@ the window regains focus and once a minute, even where the editor's file watcher
 - A rename update is skipped for references inside a config file that was itself moved.
 - Out of scope by design: `env_file` and `${VAR}` in Compose files, and script line endings,
   shebangs and executable bits.
+
+## Contributing
+
+For development setup, test commands, and fixture layout, see [readme-dev.md](readme-dev.md).
 
 ## License
 

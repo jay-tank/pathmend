@@ -1,0 +1,17 @@
+{
+  "name": "pathmend-package-scripts-fixture",
+  "private": true,
+  "scripts": {
+    "build": "tsx scripts/build.ts --watch",
+    "node": "node ./scripts/run.js",
+    "shell": "bash scripts/setup.sh",
+    "direct": "./scripts/setup.sh",
+    "chained": "echo ready && tsx scripts/other.ts",
+    "package": "vite build",
+    "npm": "npm run build",
+    "option": "node --eval console.log(1)",
+    "variable": "tsx $SCRIPT",
+    "url": "node https://example.test/script.js",
+    "notAPath": "echo scripts/build.ts"
+  }
+}

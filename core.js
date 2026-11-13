@@ -874,6 +874,37 @@ function yamlRef(c, s, o) {
   );
 }
 
+// Only recognize file operands in known script-launch commands. Other arguments,
+// package binaries and shell expressions are deliberately not treated as paths.
+const PACKAGE_SCRIPT_COMMAND =
+  /(?:^|&&|\|\||[;|])\s*(?:(?:env|cross-env)\s+(?:[A-Za-z_]\w*=[^\s;&|]+\s+)*)?(?:(?:node|tsx|ts-node|ts-node-esm|bun|deno|python3?|bash|sh|zsh|dash|ksh|ruby|perl|pwsh)\s+(?:--?[\w-]+(?:=[^\s;&|]+)?\s+)*([^\s;&|"'\x60$()<>]+)|(\.\.?\/[^\s;&|"'\x60$()<>]+))/g;
+const PACKAGE_SCRIPT_EXT = /\.(?:[cm]?[jt]sx?|py|sh|bash|zsh|rb|pl|ps1)$/i;
+
+function packageScriptRefs(c, node, label, base) {
+  if (!node || node.type !== "string" || !node.value) return [];
+  // JSON escapes change source offsets. Do not attempt unsafe edits in those strings.
+  if (c.text.slice(node.start, node.end) !== node.value) return [];
+  const refs = [];
+  PACKAGE_SCRIPT_COMMAND.lastIndex = 0;
+  let match;
+  while ((match = PACKAGE_SCRIPT_COMMAND.exec(node.value))) {
+    const token = match[1] || match[2];
+    if (!token || token.includes("\\") || isGlob(token) || isUrl(token) || hasControl(token)) continue;
+    // A bare operand must be a recognizable local file, never an npm package name.
+    if (!token.startsWith("./") && !token.startsWith("../") && !PACKAGE_SCRIPT_EXT.test(token)) continue;
+    if (token.startsWith("-") || /^(?:https?:|file:)/i.test(token)) continue;
+    const offset = node.start + match.index + match[0].lastIndexOf(token);
+    const position = posOf(c.starts, offset);
+    refs.push(mkRef({
+      file: c.file, line: position.line, col: position.col,
+      endCol: position.col + token.length, value: token,
+      escape: "json", code: "PM001", base, kind: "file",
+      label: "package.json " + label,
+    }));
+  }
+  return refs;
+}
+
 function extractPackage(c) {
   const tree = parseJsonc(c.text);
   if (!tree || tree.type !== "object") return [];
@@ -885,6 +916,10 @@ function extractPackage(c) {
   };
   add(jget(tree, "main"), "main", { kind: "file", alts: [".js", ".json", ".node", "/index.js", "/index.json", "/index.node"] });
   for (const k of ["module", "types", "typings", "browser"]) add(jget(tree, k), k, { kind: "file" });
+  const scripts = jget(tree, "scripts");
+  if (scripts && scripts.type === "object") {
+    for (const entry of scripts.props) out.push(...packageScriptRefs(c, entry.value, "scripts." + entry.key, base));
+  }
   const bin = jget(tree, "bin");
   if (bin && bin.type === "string") add(bin, "bin", { kind: "file" });
   else if (bin && bin.type === "object") for (const p of bin.props) add(p.value, "bin." + p.key, { kind: "file" });

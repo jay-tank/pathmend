@@ -226,8 +226,10 @@ async function body(check, cfg) {
   await vscode.commands.executeCommand("workbench.view.extension.pathmend");
   await sleep(6000);
   fs.writeFileSync(path.join(cfg.shotDir, "shot-trusted"), "1");
-  const shotDone = await waitFor(() => fs.existsSync(path.join(cfg.shotDir, "shot-done-trusted")), 20000);
-  check("screenshot taken", shotDone);
+  const screenshotResult = path.join(cfg.shotDir, "shot-done-trusted");
+  const shotDone = await waitFor(() => fs.existsSync(screenshotResult), 20000);
+  const captured = shotDone && fs.readFileSync(screenshotResult, "utf8") === "ok";
+  check("screenshot captured", captured);
 
   // ---- open command ------------------------------------------------------------------
   const openRes = await vscode.commands.executeCommand(start.item.command.command, ...start.item.command.arguments);
