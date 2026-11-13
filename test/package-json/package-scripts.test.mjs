@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import core from "../../core.js";
+import scriptPaths from "../../package-scripts.js";
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const fixtureManifest = path.resolve(testDirectory, "../fixtures/package-json/package.json");
@@ -36,6 +37,35 @@ function applyPlan(plan) {
   }
   fs.writeFileSync(manifest, lines.join("\n"));
 }
+
+describe("isolated script path extraction", () => {
+  it("extracts direct scripts and generic option operands with precise offsets", () => {
+    const command = "node scripts/setup.js && tool --arbitrary-flag=./configs/build.js";
+    const paths = scriptPaths.extractScriptPaths(command, "/workspace");
+    expect(paths.map(({ value, offset, base }) => [value, command.slice(offset, offset + value.length), base]))
+      .toEqual([
+        ["scripts/setup.js", "scripts/setup.js", "/workspace"],
+        ["./configs/build.js", "./configs/build.js", "/workspace"],
+      ]);
+  });
+
+  it("resolves workspace option paths and skips unknown workspaces", () => {
+    const dirs = new Map([["@scope/playground", "/workspace/packages/playground"]]);
+    const command = "npm exec --workspace @scope/playground -- vite build --anything ../../tests/vite.config.js";
+    expect(scriptPaths.extractScriptPaths(command, "/workspace", dirs))
+      .toEqual([{
+        value: "../../tests/vite.config.js",
+        offset: command.indexOf("../../tests/vite.config.js"),
+        base: "/workspace/packages/playground",
+      }]);
+    expect(scriptPaths.extractScriptPaths(command, "/workspace", new Map())).toEqual([]);
+  });
+
+  it("ignores URL, variable, package name, and scalar option arguments", () => {
+    const command = "tool --url https://example.test/file.js --input $ENTRY --plugin @scope/pkg --mode production";
+    expect(scriptPaths.extractScriptPaths(command, "/workspace")).toEqual([]);
+  });
+});
 
 describe("package.json script paths", () => {
   beforeEach(() => {
