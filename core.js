@@ -879,8 +879,12 @@ function yamlRef(c, s, o) {
 const PACKAGE_SCRIPT_COMMAND =
   /(?:^|&&|\|\||[;|])\s*(?:(?:env|cross-env)\s+(?:[A-Za-z_]\w*=[^\s;&|]+\s+)*)?(?:(?:node|tsx|ts-node|ts-node-esm|bun|deno|python3?|bash|sh|zsh|dash|ksh|ruby|perl|pwsh)\s+(?:--?[\w-]+(?:=[^\s;&|]+)?\s+)*([^\s;&|"'\x60$()<>]+)|(\.\.?\/[^\s;&|"'\x60$()<>]+))/g;
 const PACKAGE_SCRIPT_EXT = /\.(?:[cm]?[jt]sx?|py|sh|bash|zsh|rb|pl|ps1)$/i;
+// File-valued options are recognized by their option name, not the package binary.
+// Restrict values to explicit local paths or filenames with extensions.
+const PACKAGE_SCRIPT_CONFIG_OPTION =
+  /(?:^|\s)--(?:config|config-file|config-path)(?:\s+|=)([^\s;&|"'`$()<>]+)/g;
 
-function packageScriptRefs(c, node, label, base) {
+function packageScriptRefs(c, node, label, base, ctx) {
   if (!node || node.type !== "string" || !node.value) return [];
   // JSON escapes change source offsets. Do not attempt unsafe edits in those strings.
   if (c.text.slice(node.start, node.end) !== node.value) return [];
@@ -902,10 +906,41 @@ function packageScriptRefs(c, node, label, base) {
       label: "package.json " + label,
     }));
   }
+  // Arguments after npm exec -- are evaluated from the selected workspace's
+  // directory. Without a known workspace manifest, do not guess its location.
+  const segments = /(?:^|&&|\|\||[;|])([^;&|]*)/g;
+  let segment;
+  while ((segment = segments.exec(node.value))) {
+    const body = segment[1];
+    const bodyStart = segment.index + segment[0].lastIndexOf(body);
+    let optionBase = base;
+    if (/(?:^|\s)npm\s+(?:exec|x)\b/.test(body)) {
+      const workspace = /(?:^|\s)(?:--workspace(?:=|\s+)|-w\s+)([^\s;&|]+)/.exec(body);
+      if (workspace) {
+        optionBase = ctx.packageDirs.get(workspace[1]);
+        if (!optionBase) continue;
+      }
+    }
+    PACKAGE_SCRIPT_CONFIG_OPTION.lastIndex = 0;
+    let option;
+    while ((option = PACKAGE_SCRIPT_CONFIG_OPTION.exec(body))) {
+      const token = option[1];
+      if (!token || token.includes("\\") || isGlob(token) || isUrl(token) || hasControl(token)) continue;
+      if (!/^(?:\.\.?\/|\/)/.test(token) && !/\.[a-z\d]{1,8}$/i.test(token)) continue;
+      const offset = node.start + bodyStart + option.index + option[0].lastIndexOf(token);
+      const position = posOf(c.starts, offset);
+      refs.push(mkRef({
+        file: c.file, line: position.line, col: position.col,
+        endCol: position.col + token.length, value: token,
+        escape: "json", code: "PM001", base: optionBase, kind: "file",
+        label: "package.json " + label,
+      }));
+    }
+  }
   return refs;
 }
 
-function extractPackage(c) {
+function extractPackage(c, ctx) {
   const tree = parseJsonc(c.text);
   if (!tree || tree.type !== "object") return [];
   const out = [];
@@ -918,7 +953,7 @@ function extractPackage(c) {
   for (const k of ["module", "types", "typings", "browser"]) add(jget(tree, k), k, { kind: "file" });
   const scripts = jget(tree, "scripts");
   if (scripts && scripts.type === "object") {
-    for (const entry of scripts.props) out.push(...packageScriptRefs(c, entry.value, "scripts." + entry.key, base));
+    for (const entry of scripts.props) out.push(...packageScriptRefs(c, entry.value, "scripts." + entry.key, base, ctx));
   }
   const bin = jget(tree, "bin");
   if (bin && bin.type === "string") add(bin, "bin", { kind: "file" });
@@ -1619,6 +1654,19 @@ function analyze(opts) {
     .filter((c) => c.kind)
     .sort((a, b) => (order[a.kind] === undefined ? 2 : order[a.kind]) - (order[b.kind] === undefined ? 2 : order[b.kind]));
   ctx.guard = opts.guard;
+  // Use package names from the analyzed manifests to resolve npm workspace cwd.
+  ctx.packageDirs = new Map();
+  for (const c of configs) {
+    if (c.kind !== "package") continue;
+    try {
+      const name = jget(parseJsonc(c.text), "name");
+      if (name && name.type === "string" && name.value) {
+        ctx.packageDirs.set(name.value, path.dirname(c.file));
+      }
+    } catch (_) {
+      /* malformed package.json */
+    }
+  }
   ctx.tsInfo = new Map();
   for (const c of configs) {
     if (c.kind !== "tsconfig") continue;
@@ -1635,7 +1683,7 @@ function analyze(opts) {
     c.lines = splitLines(c.text);
     let list = [];
     try {
-      if (c.kind === "package") list = extractPackage(c);
+      if (c.kind === "package") list = extractPackage(c, ctx);
       else if (c.kind === "tsconfig") list = extractTsconfig(c, ctx);
       else if (c.kind === "compose") list = extractCompose(c, ctx);
       else if (c.kind === "workflow" || c.kind === "action") list = extractWorkflow(c, c.kind);
